@@ -63,7 +63,7 @@ int next_thread(int current_thread, bool* thread_finished)
         if (next_thread == Get_thread_number())
             next_thread = 0;
         if (next_thread == current_thread)
-            return -1;  //shouldn't happen
+            return current_thread;  //the last one
     }
     return next_thread;
 }
@@ -71,8 +71,14 @@ int next_thread(int current_thread, bool* thread_finished)
 //for blocked, for finegrained use next_thread
 int context_switch (int current_thread, bool* thread_finished)
 {
-    num_cycles_blocked += Get_switch_cycles();
-    return next_thread(current_thread, thread_finished);
+    int next = next_thread(current_thread, thread_finished);
+    if (next != current_thread)
+    {
+        num_cycles_blocked += Get_switch_cycles();
+        return next;
+    }
+    else    //no context switch
+        return current_thread;
 }
 
 void update_latencies(int* wait_to_memory)
@@ -114,6 +120,8 @@ Status Core_blocked_Multithreading()
         switch (inst.opcode)
         {
             case CMD_NOP :
+                //TODO what???
+                break;
             case CMD_ADD :
                 regs[inst.dst_index] = regs[inst.src1_index] + regs[inst.src2_index_imm];
                 pcs[thread_idx]++;
@@ -133,17 +141,23 @@ Status Core_blocked_Multithreading()
             case CMD_LOAD :
                 if (wait_to_memory == 0)
                 {//start the instruction
-
+                    int location = 0; //TODO calculate
+                    SIM_MemDataRead(location, &(blocked_regs[thread_idx][inst.dst_index]));
+                    wait_to_memory[thread_idx] = load_latency; //TODO maybe +1
+                    context_switch(thread_idx, thread_finished);
                 }
                 else if (wait_to_memory == -1)
                 {//end the instruction
-                    SIM_MemDataRead(uint32_t addr, int32_t *dst);
+                    pcs[thread_idx]++;
                 }
                 else
                 {//still waiting
-
+                    context_switch(thread_idx, thread_finished);
                 }
+                break;
             case CMD_STORE :
+                //TODO
+                break;
             case CMD_HALT :
                 thread_finished[thread_idx] = true;
                 context_switch(thread_idx, thread_finished);
