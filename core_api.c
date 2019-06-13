@@ -139,15 +139,20 @@ Status Core_blocked_Multithreading()
                 pcs[thread_idx]++;
                 break;
             case CMD_LOAD :
-                if (wait_to_memory == 0)
+                if (wait_to_memory[thread_idx] == 0)
                 {//start the instruction
-                    int location = 0; //TODO calculate
-                    SIM_MemDataRead(location, &(blocked_regs[thread_idx][inst.dst_index]));
+                    int mem_address;
+                    if (inst.isSrc2Imm)
+                        mem_address = regs[inst.src1_index] + inst.src2_index_imm;
+                    else
+                        mem_address = regs[inst.src1_index] + regs[inst.src2_index_imm];
+                    SIM_MemDataRead(mem_address, &(regs[inst.dst_index]));
                     wait_to_memory[thread_idx] = load_latency; //TODO maybe +1
                     context_switch(thread_idx, thread_finished);
                 }
-                else if (wait_to_memory == -1)
+                else if (wait_to_memory[thread_idx] == -1)
                 {//end the instruction
+                    wait_to_memory[thread_idx] = 0;
                     pcs[thread_idx]++;
                 }
                 else
@@ -156,7 +161,26 @@ Status Core_blocked_Multithreading()
                 }
                 break;
             case CMD_STORE :
-                //TODO
+                if (wait_to_memory[thread_idx] == 0)
+                {//start the instruction
+                    int mem_address;
+                    if (inst.isSrc2Imm)
+                        mem_address = regs[inst.dst_index] + inst.src2_index_imm;
+                    else
+                        mem_address = regs[inst.dst_index] + regs[inst.src2_index_imm];
+                    SIM_MemDataWrite(mem_address, regs[inst.src1_index]);
+                    wait_to_memory[thread_idx] = store_latency; //TODO maybe +1
+                    context_switch(thread_idx, thread_finished);
+                }
+                else if (wait_to_memory[thread_idx] == -1)
+                {//end the instruction
+                    wait_to_memory[thread_idx] = 0;
+                    pcs[thread_idx]++;
+                }
+                else
+                {//still waiting
+                    context_switch(thread_idx, thread_finished);
+                }
                 break;
             case CMD_HALT :
                 thread_finished[thread_idx] = true;
