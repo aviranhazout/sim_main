@@ -210,29 +210,60 @@ Status _digest_opcode(enum multi_thread_type multi_type, int* thread_idx, int pc
     switch (inst.opcode) {
         case CMD_NOP :
             //bubble - i think just increase cycle count and if finegrained then switch thread
+            if (multi_type == FINE_GRAINED)
+                num_insts_finegrained++;
+            else
+                num_insts_blocked++;
+
             break;
         case CMD_ADD :
             finegrained_regs[*thread_idx].reg[inst.dst_index] = finegrained_regs[*thread_idx].reg[inst.src1_index]
                                                                + finegrained_regs[*thread_idx].reg[inst.src2_index_imm];
+
+            if (multi_type == FINE_GRAINED)
+                num_insts_finegrained++;
+            else
+                num_insts_blocked++;
+
             pcs[*thread_idx] += 4;
             break;
         case CMD_SUB :
             finegrained_regs[*thread_idx].reg[inst.dst_index] = finegrained_regs[*thread_idx].reg[inst.src1_index]
                                                                - finegrained_regs[*thread_idx].reg[inst.src2_index_imm];
+            if (multi_type == FINE_GRAINED)
+                num_insts_finegrained++;
+            else
+                num_insts_blocked++;
+
             pcs[*thread_idx] += 4;
             break;
         case CMD_ADDI :
             finegrained_regs[*thread_idx].reg[inst.dst_index] = finegrained_regs[*thread_idx].reg[inst.src1_index]
                                                                + inst.src2_index_imm;
+            if (multi_type == FINE_GRAINED)
+                num_insts_finegrained++;
+            else
+                num_insts_blocked++;
+
             pcs[*thread_idx] += 4;
             break;
         case CMD_SUBI :
             finegrained_regs[*thread_idx].reg[inst.dst_index] = finegrained_regs[*thread_idx].reg[inst.src1_index]
                                                                - inst.src2_index_imm;
+            if (multi_type == FINE_GRAINED)
+                num_insts_finegrained++;
+            else
+                num_insts_blocked++;
+
             pcs[*thread_idx] += 4;
             break;
         case CMD_LOAD :
             if (wait_to_memory[*thread_idx] == 0) {//start the instruction
+                if (multi_type == FINE_GRAINED)
+                    num_insts_finegrained++;
+                else
+                    num_insts_blocked++;
+
                 int mem_address;
                 if (inst.isSrc2Imm)
                     mem_address = finegrained_regs[*thread_idx].reg[inst.src1_index] + inst.src2_index_imm;
@@ -251,6 +282,11 @@ Status _digest_opcode(enum multi_thread_type multi_type, int* thread_idx, int pc
             break;
         case CMD_STORE :
             if (wait_to_memory[*thread_idx] == 0) {//start the instruction
+                if (multi_type == FINE_GRAINED)
+                    num_insts_finegrained++;
+                else
+                    num_insts_blocked++;
+
                 int mem_address;
                 if (inst.isSrc2Imm)
                     mem_address = finegrained_regs[*thread_idx].reg[inst.dst_index] + inst.src2_index_imm;
@@ -271,14 +307,18 @@ Status _digest_opcode(enum multi_thread_type multi_type, int* thread_idx, int pc
             thread_finished[*thread_idx] = true;
             if(multi_type == BLOCKED)
                 context_switch(*thread_idx, thread_finished);
+
+            if (multi_type == FINE_GRAINED)
+                num_insts_finegrained++;
+            else
+                num_insts_blocked++;
+
             break;
     }
     // continue to next thread after command
     if(multi_type == FINE_GRAINED)
         *thread_idx = next_thread(*thread_idx, thread_finished);
     update_latencies(wait_to_memory);
-    num_cycles_finegrained++;
-
     return Success;
 }
 
@@ -298,9 +338,8 @@ Status Core_fineGrained_Multithreading() {
     int thread_idx = 0;
     while (!is_done(thread_finished)) {
         _digest_opcode(FINE_GRAINED, &thread_idx, pcs, thread_finished, wait_to_memory, load_latency, store_latency);
-
-        return Success;
     }
+    return Success;
 }
 
 double Core_finegrained_CPI(){
