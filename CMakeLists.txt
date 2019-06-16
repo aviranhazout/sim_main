@@ -3,4 +3,4 @@ project(sim_main)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(sim_main main.c)
+add_executable(sim_main main.c core_api.c sim_mem.c)
