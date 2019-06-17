@@ -215,7 +215,7 @@ int SIM_MemReset(const char *memImgFname) {
             int inst = 0;
             fgets(line, 1024, img);
             // get next instructions
-            while (line[0] != '\n' && line[0] != '#' && line[0] != 'D') {
+            while (line[0] != '\n' && line[0] != '#' && line[0] != 'D' && line[0] != '\r') {
                 get_inst(line, inst,id);
                 ++inst;
                 if (fgets(line, 1024, img) == NULL)   //EOF

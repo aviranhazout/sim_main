@@ -22,7 +22,7 @@ N3  #there is three threads that run
 #thread 0
 T0 
 I@0x00000000 #each thread starts from address 0 (instruction address)
-HALT $0 #ends immdediatly 
+HALT $0 #ends immdediatly
 
 #thread1
 T1

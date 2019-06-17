@@ -22,13 +22,13 @@ tcontext* finegrained_regs;
 Status init (tcontext* contexts, int* pcs, bool* thread_finished, int* wait_to_memory, int* load_latency, int* store_latency)
 {
     int threads_num = Get_thread_number();
-    int* pcs = (int*)malloc(threads_num * sizeof(int));
+    pcs = (int*)malloc(threads_num * sizeof(int));
     if (pcs == NULL)
         return Failure;
-    v = (tcontext*)malloc(threads_num * sizeof(tcontext));
+    contexts = (tcontext*)malloc(threads_num * sizeof(tcontext));
     if (contexts == NULL)
         return Failure;
-    int* wait_to_memory = (int*)malloc(threads_num * sizeof(int));
+    wait_to_memory = (int*)malloc(threads_num * sizeof(int));
     if (wait_to_memory == NULL)
         return Failure;
     thread_finished = (bool*)malloc(threads_num * sizeof(bool));
@@ -42,7 +42,7 @@ Status init (tcontext* contexts, int* pcs, bool* thread_finished, int* wait_to_m
         wait_to_memory[i] = 0;
         pcs[i] = 0;
         for (int j = 0; j < NUM_REGS; j++)
-            contexts[i][j] = 0;
+            contexts[i].reg[j] = 0;
     }
     return Success;
 }
@@ -87,8 +87,6 @@ int context_switch (int current_thread, bool* thread_finished)
         return current_thread;
 }
 
-//not sure why cant equal zero?
-//why mark them with -1
 void update_latencies(int* wait_to_memory)
 {
     for(int i = 0; i < Get_thread_number(); i++)
@@ -118,33 +116,33 @@ Status Core_blocked_Multithreading()
     if (init(blocked_regs, pcs, thread_finished, wait_to_memory, &load_latency, &store_latency) == Failure)
         return Failure;
 
-    tcontext* regs;
+    //tcontext* regs;
     int thread_idx = 0;
     Instuction inst;
     while(!is_done(thread_finished))
     {
 
         SIM_MemInstRead(pcs[thread_idx], &inst, thread_idx);
-        regs = blocked_regs[thread_idx];
+        //regs = blocked_regs[thread_idx];
         switch (inst.opcode)
         {
             case CMD_NOP :
                 //TODO what???
                 break;
             case CMD_ADD :
-                regs[inst.dst_index] = regs[inst.src1_index] + regs[inst.src2_index_imm];
+                blocked_regs[thread_idx].reg[inst.dst_index] = blocked_regs[thread_idx].reg[inst.src1_index] + blocked_regs[thread_idx].reg[inst.src2_index_imm];
                 pcs[thread_idx]++;
                 break;
             case CMD_SUB :
-                regs[inst.dst_index] = regs[inst.src1_index] - regs[inst.src2_index_imm];
+                blocked_regs[thread_idx].reg[inst.dst_index] = blocked_regs[thread_idx].reg[inst.src1_index] - blocked_regs[thread_idx].reg[inst.src2_index_imm];
                 pcs[thread_idx]++;
                 break;
             case CMD_ADDI :
-                regs[inst.dst_index] = regs[inst.src1_index] + inst.src2_index_imm;
+                blocked_regs[thread_idx].reg[inst.dst_index] = blocked_regs[thread_idx].reg[inst.src1_index] + inst.src2_index_imm;
                 pcs[thread_idx]++;
                 break;
             case CMD_SUBI :
-                regs[inst.dst_index] = regs[inst.src1_index] - inst.src2_index_imm;
+                blocked_regs[thread_idx].reg[inst.dst_index] = blocked_regs[thread_idx].reg[inst.src1_index] - inst.src2_index_imm;
                 pcs[thread_idx]++;
                 break;
             case CMD_LOAD :
@@ -152,10 +150,10 @@ Status Core_blocked_Multithreading()
                 {//start the instruction
                     int mem_address;
                     if (inst.isSrc2Imm)
-                        mem_address = regs[inst.src1_index] + inst.src2_index_imm;
+                        mem_address = blocked_regs[thread_idx].reg[inst.src1_index] + inst.src2_index_imm;
                     else
-                        mem_address = regs[inst.src1_index] + regs[inst.src2_index_imm];
-                    SIM_MemDataRead(mem_address, &(regs[inst.dst_index]));
+                        mem_address = blocked_regs[thread_idx].reg[inst.src1_index] + blocked_regs[thread_idx].reg[inst.src2_index_imm];
+                    SIM_MemDataRead(mem_address, &(blocked_regs[thread_idx].reg[inst.dst_index]));
                     wait_to_memory[thread_idx] = load_latency; //TODO maybe +1
                     context_switch(thread_idx, thread_finished);
                 }
@@ -174,10 +172,10 @@ Status Core_blocked_Multithreading()
                 {//start the instruction
                     int mem_address;
                     if (inst.isSrc2Imm)
-                        mem_address = regs[inst.dst_index] + inst.src2_index_imm;
+                        mem_address = blocked_regs[thread_idx].reg[inst.dst_index] + inst.src2_index_imm;
                     else
-                        mem_address = regs[inst.dst_index] + regs[inst.src2_index_imm];
-                    SIM_MemDataWrite(mem_address, regs[inst.src1_index]);
+                        mem_address = blocked_regs[thread_idx].reg[inst.dst_index] + blocked_regs[thread_idx].reg[inst.src2_index_imm];
+                    SIM_MemDataWrite(mem_address, blocked_regs[thread_idx].reg[inst.src1_index]);
                     wait_to_memory[thread_idx] = store_latency; //TODO maybe +1
                     context_switch(thread_idx, thread_finished);
                 }

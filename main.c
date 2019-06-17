@@ -19,6 +19,7 @@ int main(int argc, char const *argv[]){
 	    	blocked[k].reg[i]=0;
 	    }
 	}
+	/*
 	Core_blocked_Multithreading();
 	printf("\n----Blocked Simulation -------\n");
 	for(int k=0; k < Get_thread_number(); k++){
@@ -28,7 +29,7 @@ int main(int argc, char const *argv[]){
 	        printf("\tR%d = 0x%X", i, blocked[k].reg[i]);
 	}
     printf("\nBlocked Multithreading CPI for this program %lf\n",	Core_blocked_CPI());
-
+    */
 	Core_fineGrained_Multithreading();
 	printf("\n-----Finegrained Simulation -----\n");
 	for(int k=0; k < Get_thread_number(); k++){
