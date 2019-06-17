@@ -19,30 +19,32 @@ int num_cycles_finegrained = 0;
 tcontext* finegrained_regs;
 
 
-Status init (tcontext* contexts, int* pcs, bool* thread_finished, int* wait_to_memory, int* load_latency, int* store_latency)
+Status init (tcontext** contexts, int** pcs, bool** thread_finished, int** wait_to_memory, int* load_latency, int* store_latency)
 {
     int threads_num = Get_thread_number();
-    pcs = (int*)malloc(threads_num * sizeof(int));
-    if (pcs == NULL)
+    *pcs = (int*)malloc(threads_num * sizeof(int));
+    if (*pcs == NULL)
         return Failure;
-    contexts = (tcontext*)malloc(threads_num * sizeof(tcontext));
-    if (contexts == NULL)
+    *contexts = (tcontext*)malloc(threads_num * sizeof(tcontext));
+    if (*contexts == NULL)
         return Failure;
-    wait_to_memory = (int*)malloc(threads_num * sizeof(int));
-    if (wait_to_memory == NULL)
+    *wait_to_memory = (int*)malloc(threads_num * sizeof(int));
+    if (*wait_to_memory == NULL)
         return Failure;
-    thread_finished = (bool*)malloc(threads_num * sizeof(bool));
+    *thread_finished = (bool*)malloc(threads_num * sizeof(bool));
+    if (*thread_finished == NULL)
+        return Failure;
     int latencies[2];
     Mem_latency(latencies);
     *load_latency = latencies[0];
     *store_latency = latencies[1];
     for(int i = 0; i < threads_num; i++)
     {
-        thread_finished[i] = false;
-        wait_to_memory[i] = 0;
-        pcs[i] = 0;
+        (*thread_finished)[i] = false;
+        (*wait_to_memory)[i] = 0;
+        (*pcs)[i] = 0;
         for (int j = 0; j < NUM_REGS; j++)
-            contexts[i].reg[j] = 0;
+            (*contexts)[i].reg[j] = 0;
     }
     return Success;
 }
@@ -51,7 +53,7 @@ bool is_done(bool* thread_finished)
 {
     for(int i = 0; i < Get_thread_number(); i++)
     {
-        if (!thread_finished[i])
+        if (!(thread_finished[i]))
             return false;
     }
     return true;
@@ -61,8 +63,8 @@ int next_thread(int current_thread, bool* thread_finished)
 {
     int next_thread = current_thread + 1;
     //Checks for last thread running
-    if (current_thread == Get_thread_number())
-        next_thread = 0;
+    if (next_thread >= Get_thread_number())
+        next_thread -= Get_thread_number();
     while (thread_finished[next_thread])
     {//next thread finished
         next_thread++;
@@ -98,7 +100,52 @@ void update_latencies(int* wait_to_memory)
     }
 }
 
+void debuggg (Instuction inst, int* pcs, int id, int curr_id)
+{
+    int threads_num = Get_thread_number();
+    printf("\n\n\ninstruction for thread %d\n", curr_id);
+    switch (inst.opcode)
+    {
+        case CMD_NOP :
+            printf("NOP");
+            break;
+        case CMD_ADD :
+            printf("ADD");
+            break;
+        case CMD_SUB :
+            printf("SUB");
+            break;
+        case CMD_ADDI :
+            printf("ADDI");
+            break;
+        case CMD_SUBI:
+            printf("SUBI");
+            break;
+        case CMD_LOAD :
+            printf("LOAD");
+            break;
+        case CMD_STORE :
+            printf("STORE");
+            break;
+        case CMD_HALT :
+            printf("HALT");
+            break;
+    }
+    printf(" %d <- %d, %d  bool=%d\n",inst.dst_index, inst.src1_index, inst.src2_index_imm, inst.isSrc2Imm);
 
+    for (int i = 0; i < threads_num; i++)
+    {
+        printf("\n---THREAD - %d---\n\n",i);
+
+        for (int j = 0; j < NUM_REGS; j++)
+        {
+            printf("reg %d = %d, ", j, blocked_regs[i].reg[j]);
+        }
+        printf("\npc = %d\n",pcs[i]);
+
+    }
+    printf("\ninstructions = %d, cycles = %d, next thread = %d\n",num_insts_blocked, num_cycles_blocked, id);
+}
 
 
 Status Core_blocked_Multithreading()
@@ -113,58 +160,67 @@ Status Core_blocked_Multithreading()
     int* wait_to_memory;
     int load_latency;
     int store_latency;
-    if (init(blocked_regs, pcs, thread_finished, wait_to_memory, &load_latency, &store_latency) == Failure)
+    if (init(&blocked_regs, &pcs, &thread_finished, &wait_to_memory, &load_latency, &store_latency) == Failure)
         return Failure;
-
-    //tcontext* regs;
+    int debuggg_thread;
+    tcontext* regs;
     int thread_idx = 0;
     Instuction inst;
     while(!is_done(thread_finished))
     {
-
+        //-------------------------
+        debuggg_thread = thread_idx;
+        if (num_cycles_blocked == 12)
+            printf("test");
+        //-------------------------
         SIM_MemInstRead(pcs[thread_idx], &inst, thread_idx);
-        //regs = blocked_regs[thread_idx];
+        regs = &blocked_regs[thread_idx];
         switch (inst.opcode)
         {
             case CMD_NOP :
                 //TODO what???
                 break;
             case CMD_ADD :
-                blocked_regs[thread_idx].reg[inst.dst_index] = blocked_regs[thread_idx].reg[inst.src1_index] + blocked_regs[thread_idx].reg[inst.src2_index_imm];
+                regs->reg[inst.dst_index] = regs->reg[inst.src1_index] + regs->reg[inst.src2_index_imm];
                 pcs[thread_idx]++;
+                num_insts_blocked++;
                 break;
             case CMD_SUB :
-                blocked_regs[thread_idx].reg[inst.dst_index] = blocked_regs[thread_idx].reg[inst.src1_index] - blocked_regs[thread_idx].reg[inst.src2_index_imm];
+                regs->reg[inst.dst_index] = regs->reg[inst.src1_index] - regs->reg[inst.src2_index_imm];
                 pcs[thread_idx]++;
+                num_insts_blocked++;
                 break;
             case CMD_ADDI :
-                blocked_regs[thread_idx].reg[inst.dst_index] = blocked_regs[thread_idx].reg[inst.src1_index] + inst.src2_index_imm;
+                regs->reg[inst.dst_index] = regs->reg[inst.src1_index] + inst.src2_index_imm;
                 pcs[thread_idx]++;
+                num_insts_blocked++;
                 break;
             case CMD_SUBI :
-                blocked_regs[thread_idx].reg[inst.dst_index] = blocked_regs[thread_idx].reg[inst.src1_index] - inst.src2_index_imm;
+                regs->reg[inst.dst_index] = regs->reg[inst.src1_index] - inst.src2_index_imm;
                 pcs[thread_idx]++;
+                num_insts_blocked++;
                 break;
             case CMD_LOAD :
                 if (wait_to_memory[thread_idx] == 0)
                 {//start the instruction
                     int mem_address;
                     if (inst.isSrc2Imm)
-                        mem_address = blocked_regs[thread_idx].reg[inst.src1_index] + inst.src2_index_imm;
+                        mem_address = regs->reg[inst.src1_index] + inst.src2_index_imm;
                     else
-                        mem_address = blocked_regs[thread_idx].reg[inst.src1_index] + blocked_regs[thread_idx].reg[inst.src2_index_imm];
-                    SIM_MemDataRead(mem_address, &(blocked_regs[thread_idx].reg[inst.dst_index]));
+                        mem_address = regs->reg[inst.src1_index] + regs->reg[inst.src2_index_imm];
+                    SIM_MemDataRead(mem_address, &(regs->reg[inst.dst_index]));
                     wait_to_memory[thread_idx] = load_latency; //TODO maybe +1
-                    context_switch(thread_idx, thread_finished);
+                    thread_idx = context_switch(thread_idx, thread_finished);
                 }
                 else if (wait_to_memory[thread_idx] == -1)
                 {//end the instruction
                     wait_to_memory[thread_idx] = 0;
                     pcs[thread_idx]++;
+                    num_insts_blocked++;
                 }
                 else
                 {//still waiting
-                    context_switch(thread_idx, thread_finished);
+                    thread_idx = context_switch(thread_idx, thread_finished);
                 }
                 break;
             case CMD_STORE :
@@ -172,30 +228,34 @@ Status Core_blocked_Multithreading()
                 {//start the instruction
                     int mem_address;
                     if (inst.isSrc2Imm)
-                        mem_address = blocked_regs[thread_idx].reg[inst.dst_index] + inst.src2_index_imm;
+                        mem_address = regs->reg[inst.dst_index] + inst.src2_index_imm;
                     else
-                        mem_address = blocked_regs[thread_idx].reg[inst.dst_index] + blocked_regs[thread_idx].reg[inst.src2_index_imm];
-                    SIM_MemDataWrite(mem_address, blocked_regs[thread_idx].reg[inst.src1_index]);
+                        mem_address = regs->reg[inst.dst_index] + regs->reg[inst.src2_index_imm];
+                    SIM_MemDataWrite(mem_address, regs->reg[inst.src1_index]);
                     wait_to_memory[thread_idx] = store_latency; //TODO maybe +1
-                    context_switch(thread_idx, thread_finished);
+                    thread_idx = context_switch(thread_idx, thread_finished);
                 }
                 else if (wait_to_memory[thread_idx] == -1)
                 {//end the instruction
                     wait_to_memory[thread_idx] = 0;
                     pcs[thread_idx]++;
+                    num_insts_blocked++;
                 }
                 else
                 {//still waiting
-                    context_switch(thread_idx, thread_finished);
+                    thread_idx = context_switch(thread_idx, thread_finished);
                 }
                 break;
             case CMD_HALT :
                 thread_finished[thread_idx] = true;
-                context_switch(thread_idx, thread_finished);
+                pcs[thread_idx]++; //for debugg
+                thread_idx = context_switch(thread_idx, thread_finished);
+                num_insts_blocked++;
                 break;
         }
         update_latencies(wait_to_memory);
         num_cycles_blocked++;
+        //debuggg (inst, pcs, thread_idx, debuggg_thread);
     }
     return Success;
 }
@@ -331,7 +391,7 @@ Status Core_fineGrained_Multithreading() {
     int *wait_to_memory;
     int load_latency;
     int store_latency;
-    if (init(finegrained_regs, pcs, thread_finished, wait_to_memory, &load_latency, &store_latency) == Failure)
+    if (init(&finegrained_regs, &pcs, &thread_finished, &wait_to_memory, &load_latency, &store_latency) == Failure)
         return Failure;
     int thread_idx = 0;
     while (!is_done(thread_finished)) {
@@ -350,11 +410,13 @@ double Core_blocked_CPI(){
     if (num_cycles_blocked == 0)
 	    return 0;
 
-    return (num_cycles_finegrained / num_cycles_blocked);
+    return ((double)num_cycles_blocked / (double)num_insts_blocked);
 }
 
-Status Core_blocked_context(tcontext* bcontext,int threadid){
-    bcontext = &blocked_regs[threadid];
+Status Core_blocked_context(tcontext* bcontext,int threadid)
+{
+    for (int i = 0; i < NUM_REGS; i++)
+        bcontext[threadid].reg[i] = blocked_regs[threadid].reg[i];
 	return Success;
 }
 
